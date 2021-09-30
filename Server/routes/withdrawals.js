@@ -116,6 +116,10 @@ router.post("/new", async (req, res) => {
 						message:
 							"Maximum withdraw amount will be exceeded after making this withdraw",
 					});
+				} else if (amount > 20000) {
+					return res.status(400).json({
+						message: "Cannot exceed maximum withdrawal per transaction",
+					});
 				} else {
 					makeWithdrawal(amount);
 				}
