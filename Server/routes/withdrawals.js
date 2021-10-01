@@ -29,61 +29,60 @@ router.post("/new", async (req, res) => {
 		tomorrow.setHours(24 - offset, 0, 0, 0);
 
 		const makeWithdrawal = (amount) => {
-			Withdrawals.create({ amount })
-				.then(() => {
-					Balances.findAll()
-						.then((results) => {
-							let totalBalance = 0;
-							results.forEach((balance) => {
-								totalBalance += parseInt(balance["amount"]);
-							});
+			Balances.findAll()
+				.then((results) => {
+					let totalBalance = 0;
+					results.forEach((balance) => {
+						totalBalance += parseInt(balance["amount"]);
+					});
 
-							if (amount > totalBalance) {
-								return res
-									.status(400)
-									.json({ message: "Overdraft is currently unavailable" });
-							} else if (results.length == 0) {
-								return res.status(400).json({
-									message:
-										"You do not have any funds in your account. Please deposit some.",
-								});
-							} else {
-								Balances.findOne({
-									where: {
-										createdAt: {
-											[Op.lt]: tomorrow,
-										},
-									},
-								})
-									.then((balance) => {
-										Balances.update(
-											{ amount: parseInt(balance.amount) - amount },
-											{
-												where: {
-													id: balance.id,
-												},
-											}
-										)
-											.then(() => {
-												return res
-													.status(200)
-													.json({ message: "Withdrawal successfully made" });
-											})
-											.catch((err) => {
-												return res.status(400).json({ message: err.message });
-											});
-									})
-									.catch((err) => {
-										return res.status(400).json({ message: err.message });
-									});
-							}
-						})
-						.catch((err) => {
-							return res.status(400).json({ message: err.message });
+					if (amount > totalBalance) {
+						return res
+							.status(400)
+							.json({ message: "Overdraft is currently unavailable" });
+					} else if (results.length == 0) {
+						return res.status(400).json({
+							message:
+								"You do not have any funds in your account. Please deposit some.",
 						});
+					} else {
+						Balances.findOne({
+							where: {
+								createdAt: {
+									[Op.lt]: tomorrow,
+								},
+							},
+						})
+							.then((balance) => {
+								Withdrawals.create({ amount }).then(() => {
+									Balances.update(
+										{ amount: parseInt(balance.amount) - amount },
+										{
+											where: {
+												id: balance.id,
+											},
+										}
+									)
+										.then(() => {
+											return res
+												.status(200)
+												.json({ message: "Withdrawal successfully made" });
+										})
+										.catch((err) => {
+											return res.status(400).json({ message: err.message });
+										});
+								}).catch((err) => {
+									return res.status(400).json({ message: err.message });
+								})
+								
+							})
+							.catch((err) => {
+								return res.status(400).json({ message: err.message });
+							});
+					}
 				})
 				.catch((err) => {
-					return res.status(500).json({ message: err.message });
+					return res.status(400).json({ message: err.message });
 				});
 		};
 
@@ -107,6 +106,10 @@ router.post("/new", async (req, res) => {
 					return res
 						.status(400)
 						.json({ message: "Maximum withdraw frequency reached" });
+				} else if (amount > 20000) {
+					return res.status(400).json({
+						message: "Cannot exceed maximum withdrawal per transaction",
+					});
 				} else if (todayWithdrawals >= 50000) {
 					return res
 						.status(400)
@@ -115,10 +118,6 @@ router.post("/new", async (req, res) => {
 					return res.status(400).json({
 						message:
 							"Maximum withdraw amount will be exceeded after making this withdraw",
-					});
-				} else if (amount > 20000) {
-					return res.status(400).json({
-						message: "Cannot exceed maximum withdrawal per transaction",
 					});
 				} else {
 					makeWithdrawal(amount);
